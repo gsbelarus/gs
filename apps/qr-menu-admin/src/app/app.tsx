@@ -44,7 +44,7 @@ export function App() {
               className="resource flex"
               href="https://nx.dev/latest/react/tutorial/01-create-application"
             >
-              Interactive tutorial
+              Interactive tutorial!
             </a>
           </li>
           <li className="col-span-2">

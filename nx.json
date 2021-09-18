@@ -36,6 +36,9 @@
     },
     "qr-menu-back": {
       "tags": []
+    },
+    "ui": {
+      "tags": []
     }
   }
 }
