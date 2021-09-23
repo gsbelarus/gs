@@ -13,6 +13,7 @@
     "@emotion/styled": "^11.3.0",
     "@mui/material": "^5.0.0-rc.0",
     "@reduxjs/toolkit": "^1.6.1",
+    "@xstate/react": "^1.6.1",
     "core-js": "^3.6.5",
     "express": "4.17.1",
     "react": "17.0.2",
@@ -20,7 +21,8 @@
     "react-redux": "^7.2.5",
     "react-router-dom": "5.2.0",
     "regenerator-runtime": "0.13.7",
-    "tslib": "^2.0.0"
+    "tslib": "^2.0.0",
+    "xstate": "^4.25.0"
   },
   "devDependencies": {
     "@nrwl/cli": "12.9.0",

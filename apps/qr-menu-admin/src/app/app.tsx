@@ -4,8 +4,19 @@ import { ReactComponent as Logo } from './logo.svg';
 import star from './star.svg';
 
 import { Route, Link } from 'react-router-dom';
+import { useAppSelector } from './hooks';
+import { SignInSignUp } from '@gs/ui';
 
 export function App() {
+
+  const user = useAppSelector( state => state.auth.user );
+
+  if (!user) {
+    return (
+      <SignInSignUp />
+    );
+  }
+
   return (
     <div className={styles.app}>
       <header className="flex">
