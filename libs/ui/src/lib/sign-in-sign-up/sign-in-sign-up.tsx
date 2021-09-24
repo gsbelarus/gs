@@ -9,8 +9,8 @@ import './sign-in-sign-up.module.scss';
 type LoginResult = 'OK' | 'INVALID_USER' | 'INVALID_PASSWORD' | 'ACCESS_DENIED';
 
 interface IContext {
-  userName?: string;
-  password?: string;
+  userName: string;
+  password: string;
 };
 
 type UpdateEvent = { type: 'UPDATE', data: Partial<IContext> };
@@ -24,7 +24,6 @@ type Event = { type: 'SIGNUP' }
   | { type: 'SIGNOUT' }
   | { type: 'REGISTER' };
 
-
 const machineConfig: MachineConfig<IContext, any, Event> = {
   id: 'signInSignUp',
   initial: 'signIn',
@@ -34,12 +33,39 @@ const machineConfig: MachineConfig<IContext, any, Event> = {
   },
   states: {
     signIn: {
+      initial: 'empty',
+      states: {
+        empty: {
+          on: {
+            UPDATE: {
+              target: 'check',
+              actions: 'mergeContext'
+            }
+          }
+        },
+        ready: {
+          on: {
+            AUTHENTICATE: '#signInSignUp.authenticating',
+            UPDATE: {
+              target: 'check',
+              actions: 'mergeContext'
+            }
+          }
+        },
+        check: {
+          always: [
+            {
+              target: 'ready',
+              cond: (ctx) => !!ctx.userName && !!ctx.password
+            },
+            {
+              target: 'empty'
+            },
+          ]
+        }
+      },
       on: {
         SIGNUP: 'signUp',
-        AUTHENTICATE: 'authenticating',
-        UPDATE: {
-          actions: 'mergeContext'
-        }
       }
     },
     authenticating: {
@@ -84,13 +110,9 @@ export function SignInSignUp(props: SignInSignUpProps) {
       mergeContext: assign( (ctx, evt) => ({ ...ctx, ...(evt as UpdateEvent).data }) )
     }
   }));
-  const stateValue = useSelector(service, state => state.value );
+  const signIn = useSelector(service, state => state.value.hasOwnProperty('signIn') );
   const userName = useSelector(service, state => state.context.userName );
   const password = useSelector(service, state => state.context.password );
-
-  useEffect( () => {
-    console.log('userName!');
-  }, [userName]);
 
   const { sendSignIn, sendSignUp, getHandleChange } = useMemo( () => ({
     sendSignIn: () => service.send('SIGNIN'),
@@ -103,18 +125,18 @@ export function SignInSignUp(props: SignInSignUpProps) {
     <Box sx={{ bgcolor: 'background.paper', width: 500 }}>
       <AppBar position="static">
         <Tabs
-          value={stateValue}
           indicatorColor="secondary"
           textColor="inherit"
           variant="fullWidth"
           aria-label="full width tabs example"
+          value={signIn ? 'signIn' : 'signUp'}
         >
-          <Tab label="Sign In" value="signIn" onClick={sendSignIn} />
-          <Tab label="Sign Up" value="signUp" onClick={sendSignUp}/>
+          <Tab label="Sign In" value='signIn' onClick={sendSignIn} />
+          <Tab label="Sign Up" value='signUp' onClick={sendSignUp}/>
         </Tabs>
       </AppBar>
       {
-        stateValue === 'signIn'
+        signIn
         ?
           <Box p={2}>
             <Stack
