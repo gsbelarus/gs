@@ -13,14 +13,17 @@ interface IContext {
   password?: string;
 };
 
+type UpdateEvent = { type: 'UPDATE', data: Partial<IContext> };
+
 type Event = { type: 'SIGNUP' }
   | { type: 'AUTHENTICATE' }
-  | { type: 'UPDATE', data: Partial<IContext> }
+  | UpdateEvent
   | { type: 'ERROR' }
   | { type: 'SUCCESS' }
   | { type: 'SIGNIN' }
   | { type: 'SIGNOUT' }
   | { type: 'REGISTER' };
+
 
 const machineConfig: MachineConfig<IContext, any, Event> = {
   id: 'signInSignUp',
@@ -32,7 +35,7 @@ const machineConfig: MachineConfig<IContext, any, Event> = {
         SIGNUP: 'signUp',
         AUTHENTICATE: 'authenticating',
         UPDATE: {
-          actions: assign( (ctx, event) => ({ ...ctx, ...event.data }) )
+          actions: 'mergeContext'
         }
       }
     },
