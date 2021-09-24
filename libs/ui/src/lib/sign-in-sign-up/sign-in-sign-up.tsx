@@ -2,7 +2,7 @@ import { AppBar, Tabs, Tab, Stack, TextField } from '@mui/material';
 import Button from '@mui/material/Button';
 import { Box } from '@mui/system';
 import { useInterpret, useSelector } from '@xstate/react';
-import { useMemo } from 'react';
+import { useMemo, useEffect } from 'react';
 import { assign, createMachine, MachineConfig } from 'xstate';
 import './sign-in-sign-up.module.scss';
 
@@ -28,7 +28,10 @@ type Event = { type: 'SIGNUP' }
 const machineConfig: MachineConfig<IContext, any, Event> = {
   id: 'signInSignUp',
   initial: 'signIn',
-  context: { },
+  context: {
+    userName: '',
+    password: ''
+  },
   states: {
     signIn: {
       on: {
@@ -85,11 +88,15 @@ export function SignInSignUp(props: SignInSignUpProps) {
   const userName = useSelector(service, state => state.context.userName );
   const password = useSelector(service, state => state.context.password );
 
+  useEffect( () => {
+    console.log('userName!');
+  }, [userName]);
+
   const { sendSignIn, sendSignUp, getHandleChange } = useMemo( () => ({
     sendSignIn: () => service.send('SIGNIN'),
     sendSignUp: () => service.send('SIGNUP'),
     getHandleChange: (fieldName: keyof IContext) => (event: React.ChangeEvent<HTMLInputElement>) =>
-      service.send('UPDATE', { [fieldName]: event.target.value })
+      service.send({ type: 'UPDATE', data: { [fieldName]: event.target.value } })
   }), [service]);
 
   return (
