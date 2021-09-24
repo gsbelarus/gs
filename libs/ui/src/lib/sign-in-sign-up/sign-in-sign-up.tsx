@@ -73,7 +73,11 @@ export interface SignInSignUpProps {
 
 export function SignInSignUp(props: SignInSignUpProps) {
 
-  const service = useInterpret(createMachine(machineConfig));
+  const service = useInterpret(createMachine(machineConfig, {
+    actions: {
+      mergeContext: assign( (ctx, evt) => ({ ...ctx, ...(evt as UpdateEvent).data }) )
+    }
+  }));
   const stateValue = useSelector(service, state => state.value );
   const userName = useSelector(service, state => state.context.userName );
   const password = useSelector(service, state => state.context.password );
