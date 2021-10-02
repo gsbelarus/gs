@@ -2,7 +2,7 @@ import { AppBar, Tabs, Tab, Stack, TextField, Typography, Container } from '@mui
 import Button from '@mui/material/Button';
 import { Box } from '@mui/system';
 import { useInterpret, useSelector } from '@xstate/react';
-import { useMemo, useEffect } from 'react';
+import { useMemo } from 'react';
 import { assign, createMachine, MachineConfig } from 'xstate';
 import './sign-in-sign-up.module.scss';
 
@@ -13,18 +13,21 @@ interface IContext {
   password: string;
   signedIn: boolean;
   error: string;
+  email: string;
 };
 
 type UpdateEvent = { type: 'UPDATE', data: Partial<IContext> };
 
 type Event = { type: 'SIGNUP' }
   | { type: 'AUTHENTICATE' }
-  | UpdateEvent
   | { type: 'ERROR' }
   | { type: 'SUCCESS' }
   | { type: 'SIGNIN' }
   | { type: 'SIGNOUT' }
-  | { type: 'REGISTER' };
+  | { type: 'FORGOT_PASSWORD' }
+  | { type: 'REGISTER' }
+  | { type: 'CANCEL' }
+  | UpdateEvent;
 
 const machineConfig: MachineConfig<IContext, any, Event> = {
   id: 'signInSignUp',
@@ -33,18 +36,21 @@ const machineConfig: MachineConfig<IContext, any, Event> = {
     userName: '',
     password: '',
     signedIn: false,
-    error: ''
+    error: '',
+    email: ''
   },
   states: {
     signIn: {
-      initial: 'empty',
+      id: 'signIn',
+      initial: 'check',
       states: {
         empty: {
           on: {
             UPDATE: {
               target: 'check',
               actions: 'mergeContext'
-            }
+            },
+            FORGOT_PASSWORD: 'forgotPassword'
           }
         },
         ready: {
@@ -53,7 +59,8 @@ const machineConfig: MachineConfig<IContext, any, Event> = {
             UPDATE: {
               target: 'check',
               actions: 'mergeContext'
-            }
+            },
+            FORGOT_PASSWORD: 'forgotPassword'
           }
         },
         check: {
@@ -66,6 +73,40 @@ const machineConfig: MachineConfig<IContext, any, Event> = {
               target: 'empty'
             },
           ]
+        },
+        forgotPassword: {
+          initial: 'enterEmail',
+          states: {
+            enterEmail: {
+              on: {
+                UPDATE: {
+                  target: 'checkEmailEntered',
+                  actions: 'mergeContext'
+                },
+                CANCEL: '#signIn.check'
+              }
+            },
+            readyToSend: {
+              on: {
+                UPDATE: {
+                  target: 'checkEmailEntered',
+                  actions: 'mergeContext'
+                },
+                CANCEL: '#signIn.check'
+              }
+            },
+            checkEmailEntered: {
+              always: [
+                {
+                  target: 'readyToSend',
+                  cond: ({ email }) => /\S+@\S+\.\S+/.test(email)
+                },
+                {
+                  target: 'enterEmail'
+                },
+              ]
+            },
+          }
         }
       },
       on: {
@@ -151,33 +192,39 @@ export function SignInSignUp(props: SignInSignUpProps) {
   const signIn = useSelector(service, state => state.matches('signIn') );
   const signUp = useSelector(service, state => state.matches('signUp') );
   const ready = useSelector(service, state => state.matches('signIn.ready') );
+  const readyToSend = useSelector(service, state => state.matches('signIn.forgotPassword.readyToSend') );
+  const forgotPassword = useSelector(service, state => state.matches('signIn.forgotPassword') );
   const authenticated = useSelector(service, state => state.matches('authenticated') );
   const failure = useSelector(service, state => state.matches('failure') );
   const userName = useSelector(service, state => state.context.userName );
+  const email = useSelector(service, state => state.context.email );
   const password = useSelector(service, state => state.context.password );
   const error = useSelector(service, state => state.context.error );
 
-  const { sendSignIn, sendSignUp, sendSignOut, sendAuthenticate, sendUpdateUserName, sendUpdatePassword } = useMemo(
+  const send = useMemo(
     () => {
 
       const getHandleChange = (fieldName: keyof IContext) => (event: React.ChangeEvent<HTMLInputElement>) =>
         service.send({ type: 'UPDATE', data: { [fieldName]: event.target.value } });
 
       return ({
-        sendSignIn: () => service.send('SIGNIN'),
-        sendSignUp: () => service.send('SIGNUP'),
-        sendSignOut: () => service.send('SIGNOUT'),
-        sendAuthenticate: () => service.send('AUTHENTICATE'),
-        sendUpdateUserName: getHandleChange('userName'),
-        sendUpdatePassword: getHandleChange('password'),
+        signIn: () => service.send('SIGNIN'),
+        signUp: () => service.send('SIGNUP'),
+        signOut: () => service.send('SIGNOUT'),
+        authenticate: () => service.send('AUTHENTICATE'),
+        forgotPassword: () => service.send('FORGOT_PASSWORD'),
+        cancel: () => service.send('CANCEL'),
+        updateUserName: getHandleChange('userName'),
+        updatePassword: getHandleChange('password'),
+        updateEmail: getHandleChange('email')
       });
-    }, [service]);
-
-  service.nextState
+    }, [service]
+  );
 
   return (
     <Box sx={{ bgcolor: 'background.paper', width: 500, border: '1px solid gray' }}>
       {JSON.stringify(state.nextEvents)}
+      {JSON.stringify(state.value)}
       <AppBar position="static">
         <Tabs
           indicatorColor="secondary"
@@ -186,8 +233,8 @@ export function SignInSignUp(props: SignInSignUpProps) {
           aria-label="full width tabs example"
           value={signIn ? 'signIn' : signUp ? 'signUp' : undefined}
         >
-          <Tab label="Sign In" value='signIn' disabled={!state.nextEvents.includes('SIGNIN')} onClick={sendSignIn} />
-          <Tab label="Sign Up" value='signUp' disabled={!state.nextEvents.includes('SIGNUP')} onClick={sendSignUp}/>
+          <Tab label="Sign In" value='signIn' disabled={!state.nextEvents.includes('SIGNIN')} onClick={send.signIn} />
+          <Tab label="Sign Up" value='signUp' disabled={!state.nextEvents.includes('SIGNUP')} onClick={send.signUp}/>
         </Tabs>
       </AppBar>
       {
@@ -195,36 +242,65 @@ export function SignInSignUp(props: SignInSignUpProps) {
         ?
           <Container>
             <Typography>User {userName} successfully signed in.</Typography>
-            <Button variant="contained" onClick={sendSignOut}>Sign Out</Button>
+            <Button variant="contained" onClick={send.signOut}>Sign Out</Button>
           </Container>
         :
           failure
         ?
           <Container>
             <Typography>Error: {error}</Typography>
-            <Button variant="contained" onClick={sendSignIn}>Try again</Button>
+            <Button variant="contained" onClick={send.signIn}>Try again</Button>
           </Container>
         :
           signIn
         ?
           <Box p={2}>
-            <Stack
-              direction="column"
-              spacing={2}
-            >
-              <TextField
-                label="Login"
-                value={userName}
-                onChange={sendUpdateUserName}
-              />
-              <TextField
-                label="Password"
-                type="password"
-                value={password}
-                onChange={sendUpdatePassword}
-              />
-              <Button variant="contained" disabled={!ready} onClick={sendAuthenticate}>Login</Button>
-            </Stack>
+              {
+                forgotPassword
+                ?
+                  <Stack
+                    direction="column"
+                    spacing={2}
+                  >
+                    <TextField
+                      label="Email"
+                      value={email}
+                      onChange={send.updateEmail}
+                    />
+                    <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+                      <Button variant="contained" onClick={send.cancel}>Cancel</Button>
+                      <Button variant="contained" disabled={!readyToSend} onClick={send.authenticate}>Send request</Button>
+                    </Stack>
+                  </Stack>
+                :
+                  <Stack
+                    direction="column"
+                    spacing={2}
+                  >
+                    <TextField
+                      label="Login"
+                      value={userName}
+                      onChange={send.updateUserName}
+                    />
+                    <TextField
+                      label="Password"
+                      type="password"
+                      value={password}
+                      onChange={send.updatePassword}
+                    />
+                    <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+                      <Button
+                        variant="text"
+                        sx={{ fontSize: 10 }}
+                        onClick={send.forgotPassword}
+                        disabled={!state.nextEvents.includes('FORGOT_PASSWORD')}
+                      >
+                        Forgot password
+                      </Button>
+                      <Button variant="contained" disabled={false} onClick={send.authenticate}>Login</Button>
+                    </Stack>
+                  </Stack>
+              }
           </Box>
         :
           <Stack>
