@@ -1,6 +1,5 @@
-import { AppBar, Tabs, Tab, Stack, TextField, Typography, Container } from '@mui/material';
-import Button from '@mui/material/Button';
-import { Box } from '@mui/system';
+import { AppBar, Tabs, Tab, Stack, TextField, Typography, Container, Modal, Button, Box } from '@mui/material';
+import { SxProps } from '@mui/system';
 import { useInterpret, useSelector } from '@xstate/react';
 import { useMemo } from 'react';
 import { assign, createMachine, MachineConfig } from 'xstate';
@@ -26,7 +25,9 @@ type Event = { type: 'SIGNUP' }
   | { type: 'SIGNOUT' }
   | { type: 'FORGOT_PASSWORD' }
   | { type: 'REGISTER' }
+  | { type: 'OK' }
   | { type: 'CANCEL' }
+  | { type: 'REQUEST_ONE_TIME_PASSWORD' }
   | UpdateEvent;
 
 const machineConfig: MachineConfig<IContext, any, Event> = {
@@ -92,7 +93,26 @@ const machineConfig: MachineConfig<IContext, any, Event> = {
                   target: 'checkEmailEntered',
                   actions: 'mergeContext'
                 },
-                CANCEL: '#signIn.check'
+                CANCEL: '#signIn.check',
+                REQUEST_ONE_TIME_PASSWORD: [
+                  {
+                    target: 'oneTimePasswordSent',
+                    cond: (ctx) => ctx.email === 'user@company.com'
+                  },
+                  {
+                    target: 'unknownEmail'
+                  }
+                ]
+              }
+            },
+            oneTimePasswordSent: {
+              on: {
+                OK: '#signIn.check'
+              }
+            },
+            unknownEmail: {
+              on: {
+                OK: 'enterEmail'
               }
             },
             checkEmailEntered: {
@@ -193,6 +213,8 @@ export function SignInSignUp(props: SignInSignUpProps) {
   const signUp = useSelector(service, state => state.matches('signUp') );
   const ready = useSelector(service, state => state.matches('signIn.ready') );
   const readyToSend = useSelector(service, state => state.matches('signIn.forgotPassword.readyToSend') );
+  const oneTimePasswordSent = useSelector(service, state => state.matches('signIn.forgotPassword.oneTimePasswordSent') );
+  const unknownEmail = useSelector(service, state => state.matches('signIn.forgotPassword.unknownEmail') );
   const forgotPassword = useSelector(service, state => state.matches('signIn.forgotPassword') );
   const authenticated = useSelector(service, state => state.matches('authenticated') );
   const failure = useSelector(service, state => state.matches('failure') );
@@ -213,6 +235,8 @@ export function SignInSignUp(props: SignInSignUpProps) {
         signOut: () => service.send('SIGNOUT'),
         authenticate: () => service.send('AUTHENTICATE'),
         forgotPassword: () => service.send('FORGOT_PASSWORD'),
+        requestOnetimePassword: () => service.send('REQUEST_ONE_TIME_PASSWORD'),
+        ok: () => service.send('OK'),
         cancel: () => service.send('CANCEL'),
         updateUserName: getHandleChange('userName'),
         updatePassword: getHandleChange('password'),
@@ -220,6 +244,18 @@ export function SignInSignUp(props: SignInSignUpProps) {
       });
     }, [service]
   );
+
+  const style: SxProps = {
+    position: 'absolute',
+    top: '50%',
+    left: '50%',
+    transform: 'translate(-50%, -50%)',
+    width: 400,
+    bgcolor: 'background.paper',
+    border: '2px solid #000',
+    boxShadow: 24,
+    p: 4,
+  };
 
   return (
     <Box sx={{ bgcolor: 'background.paper', width: 500, border: '1px solid gray' }}>
@@ -262,6 +298,9 @@ export function SignInSignUp(props: SignInSignUpProps) {
                     direction="column"
                     spacing={2}
                   >
+                    <Typography>
+                      Please, enter your email you specified when registering and we'll send you one-time password.
+                    </Typography>
                     <TextField
                       label="Email"
                       value={email}
@@ -269,8 +308,28 @@ export function SignInSignUp(props: SignInSignUpProps) {
                     />
                     <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
                       <Button variant="contained" onClick={send.cancel}>Cancel</Button>
-                      <Button variant="contained" disabled={!readyToSend} onClick={send.authenticate}>Send request</Button>
+                      <Button variant="contained" disabled={!readyToSend} onClick={send.requestOnetimePassword}>Send request</Button>
                     </Stack>
+                    <Modal
+                      open={oneTimePasswordSent}
+                      onClose={send.ok}
+                    >
+                      <Box sx={style}>
+                        <Typography id="modal-modal-description" sx={{ mt: 2 }}>
+                          {`One-time password was sent to ${email}. Please, use it within 15 minutes to login.`}
+                        </Typography>
+                      </Box>
+                    </Modal>
+                    <Modal
+                      open={unknownEmail}
+                      onClose={send.ok}
+                    >
+                      <Box sx={style}>
+                        <Typography id="modal-modal-description" sx={{ mt: 2 }}>
+                          {`Email address ${email} is not registered with the system.`}
+                        </Typography>
+                      </Box>
+                    </Modal>
                   </Stack>
                 :
                   <Stack
