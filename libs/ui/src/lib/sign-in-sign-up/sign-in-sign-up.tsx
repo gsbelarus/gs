@@ -32,6 +32,7 @@ type Event = { type: 'SIGNUP' }
 
 const machineConfig: MachineConfig<IContext, any, Event> = {
   id: 'signInSignUp',
+  strict: true,
   initial: 'signIn',
   context: {
     userName: '',
@@ -137,18 +138,21 @@ const machineConfig: MachineConfig<IContext, any, Event> = {
       invoke: {
         id: 'getUser',
         src: 'authUser',
+        autoForward: true,
+        onError: {
+          target: '#signInSignUp.failure',
+          actions: [
+            assign({
+              signedIn: (_ctx, _event) => false,
+              error: (_, event) => event.data === 1 ? 'Invalid password' : 'Unknown user name',
+              password: (_ctx, _event) => ''
+            })
+          ]
+        },
         onDone: {
           target: 'authenticated',
           actions: assign({
             signedIn: (_ctx, _event) => true,
-            password: (_ctx, _event) => ''
-          })
-        },
-        onError: {
-          target: 'failure',
-          actions: assign({
-            signedIn: (_ctx, _event) => false,
-            error: (_, event) => event.data,
             password: (_ctx, _event) => ''
           })
         }
@@ -198,9 +202,15 @@ export function SignInSignUp(props: SignInSignUpProps) {
     services: {
       authUser: (ctx, _event) => new Promise( (resolve, reject) => setTimeout( () => {
         if (ctx.userName === 'admin') {
-          resolve(0);
+          if (ctx.password === 'admin') {
+            resolve(0);
+          } else {
+            // invalid password
+            reject(2);
+          }
         } else {
-          reject('Invalid user name or password!')
+          // invalid user name
+          reject(1);
         }
       }, 1000 ) )
     },
@@ -356,7 +366,7 @@ export function SignInSignUp(props: SignInSignUpProps) {
                       >
                         Forgot password
                       </Button>
-                      <Button variant="contained" disabled={false} onClick={send.authenticate}>Login</Button>
+                      <Button variant="contained" disabled={!ready} onClick={send.authenticate}>Login</Button>
                     </Stack>
                   </Stack>
               }
