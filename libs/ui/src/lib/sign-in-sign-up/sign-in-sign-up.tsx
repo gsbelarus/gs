@@ -1,4 +1,4 @@
-import { AppBar, Tabs, Tab, Stack, TextField, Typography, Container, Modal, Button, Box } from '@mui/material';
+import { AppBar, Tabs, Tab, Stack, TextField, Typography, Container, Modal, Button, Box, CircularProgress } from '@mui/material';
 import { SxProps } from '@mui/system';
 import { useInterpret, useSelector } from '@xstate/react';
 import { useMemo } from 'react';
@@ -17,18 +17,13 @@ interface IContext {
 
 type UpdateEvent = { type: 'UPDATE', data: Partial<IContext> };
 
-type Event = { type: 'SIGNUP' }
-  | { type: 'AUTHENTICATE' }
-  | { type: 'ERROR' }
-  | { type: 'SUCCESS' }
-  | { type: 'SIGNIN' }
-  | { type: 'SIGNOUT' }
-  | { type: 'FORGOT_PASSWORD' }
-  | { type: 'REGISTER' }
-  | { type: 'OK' }
-  | { type: 'CANCEL' }
-  | { type: 'REQUEST_ONE_TIME_PASSWORD' }
-  | UpdateEvent;
+function isUpdateEvent(obj: any): obj is UpdateEvent {
+  return typeof obj === 'object' && obj?.type === 'UPDATE' && typeof obj?.data === 'object';
+};
+
+type Event = { type: 'SIGNUP' | 'AUTHENTICATE' | 'ERROR' | 'SUCCESS' | 'SIGNIN' | 'SIGNOUT' |
+  'FORGOT_PASSWORD' | 'REGISTER' | 'OK' | 'CANCEL' | 'REQUEST_ONE_TIME_PASSWORD'
+} | UpdateEvent;
 
 const machineConfig: MachineConfig<IContext, any, Event> = {
   id: 'signInSignUp',
@@ -144,7 +139,7 @@ const machineConfig: MachineConfig<IContext, any, Event> = {
           actions: [
             assign({
               signedIn: (_ctx, _event) => false,
-              error: (_, event) => event.data === 1 ? 'Invalid password' : 'Unknown user name',
+              error: (_, event) => event.data === 2 ? 'Invalid password' : 'Unknown user name',
               password: (_ctx, _event) => ''
             })
           ]
@@ -212,10 +207,10 @@ export function SignInSignUp(props: SignInSignUpProps) {
           // invalid user name
           reject(1);
         }
-      }, 1000 ) )
+      }, 2000 ) )
     },
     actions: {
-      mergeContext: assign( (ctx, evt) => ({ ...ctx, ...(evt as UpdateEvent).data }) )
+      mergeContext: assign( (ctx, evt) => isUpdateEvent(evt) ? { ...ctx, ...evt.data } : ctx )
     }
   }));
   const state = useSelector(service, state => state);
@@ -226,6 +221,7 @@ export function SignInSignUp(props: SignInSignUpProps) {
   const oneTimePasswordSent = useSelector(service, state => state.matches('signIn.forgotPassword.oneTimePasswordSent') );
   const unknownEmail = useSelector(service, state => state.matches('signIn.forgotPassword.unknownEmail') );
   const forgotPassword = useSelector(service, state => state.matches('signIn.forgotPassword') );
+  const authenticating = useSelector(service, state => state.matches('authenticating') );
   const authenticated = useSelector(service, state => state.matches('authenticated') );
   const failure = useSelector(service, state => state.matches('failure') );
   const userName = useSelector(service, state => state.context.userName );
@@ -284,6 +280,12 @@ export function SignInSignUp(props: SignInSignUpProps) {
         </Tabs>
       </AppBar>
       {
+        authenticating
+        ?
+          <Container>
+            <CircularProgress />
+          </Container>
+        :
         authenticated
         ?
           <Container>
@@ -373,6 +375,31 @@ export function SignInSignUp(props: SignInSignUpProps) {
           </Box>
         :
           <Stack>
+            <TextField
+              label="Login"
+              value={userName}
+              onChange={send.updateUserName}
+            />
+            <TextField
+              label="email"
+              value={email}
+              onChange={send.updateEmail}
+            />
+            <TextField
+              label="Password"
+              type="password"
+              value={password}
+              onChange={send.updatePassword}
+            />
+            <TextField
+              label="Confirm password"
+              type="password"
+              value={password}
+              onChange={send.updatePassword}
+            />
+            <Stack direction="row" sx={{ justifyContent: 'space-between' }}>
+              <Button variant="contained" disabled={!ready} onClick={send.authenticate}>Sign up</Button>
+            </Stack>
           </Stack>
       }
     </Box>
